@@ -1,0 +1,7 @@
+Model,MMLU   TriviaQA   GSM-8K   MATH,MMLU   TriviaQA   GSM-8K   MATH,MMLU   TriviaQA   GSM-8K   MATH,MMLU   TriviaQA   GSM-8K   MATH
+,,,,
+Na¨ıve RAG,69.57,56.90,79.12,39.54
+TurboRAG-reordered,70.73,56.47,79.45,40.58
+,,,,
+sub,+1.16,-0.43,+0.33,+1.04
+,,,,

@@ -1,0 +1,163 @@
+Test Case ID,Test Case Title,Category,Description,Preconditions,Test Steps,Expected Result,Actual Result
+TC001,PDF Text Extraction,PDF,Ensure the PDFLoader can extract all text from a sample PDF file,Sample PDF file with standard text is available,1. Load the PDF using,Text content from the PDF is extracted successfully,Pass
+,,,,,PDFLoader,,
+,,,,,".
+2. Call",,
+,,,,,extract_text(),,
+,,,,,.,,
+TC002,PDF Link Extraction,PDF,Test if hyperlinks from the PDF file are correctly extracted,Sample PDF file with hyperlinks is available,"1. Load the PDF.
+2. Call",All hyperlinks from the PDF are returned as a list of strings,Pass
+,,,,,extract_links(),,
+,,,,,.,,
+TC003,PDF Image Extraction,PDF,Verify that all images are extracted from the PDF file,Sample PDF file with images is available,"1. Load the PDF.
+2. Call",All images from the PDF are extracted and saved correctly,Pass
+,,,,,extract_images(),,
+,,,,,.,,
+TC004,PDF with No Links,PDF,Ensure that,Sample PDF without hyperlinks is available,"1. Load the PDF.
+2. Call",Returns an empty list without errors,Pass
+,,,extract_links(),,extract_links(),,
+,,,returns an empty list if no links,,.,,
+TC005,DOCX Text Extraction,DOCX,Ensure the DOCXLoader extracts all text from a DOCX file,Sample DOCX file with text is available,1. Load the DOCX using,Text content from the DOCX is extracted successfully,Pass
+,,,,,DOCXLoader,,
+,,,,,".
+2. Call",,
+,,,,,extract_text(),,
+,,,,,.,,
+TC006,DOCX Link Extraction,DOCX,Test if hyperlinks from the DOCX file are correctly extracted,Sample DOCX file with hyperlinks is available,"1. Load the DOCX.
+2. Call",All hyperlinks from the DOCX are returned as a list of strings,Pass
+,,,,,extract_links(),,
+,,,,,.,,
+TC007,DOCX Image Extraction,DOCX,Verify that all images are extracted from the DOCX file,Sample DOCX file with images is available,"1. Load the DOCX.
+2. Call",All images from the DOCX are extracted and saved correctly,Pass
+,,,,,extract_images(),,
+,,,,,.,,
+TC008,DOCX with No Links,DOCX,Ensure that,Sample DOCX without hyperlinks is available,"1. Load the DOCX.
+2. Call",Returns an empty list without errors,Pass
+,,,extract_links(),,extract_links(),,
+,,,returns an empty list if no links,,.,,
+TC009,PPT Text Extraction,PPT,Ensure the PPTLoader extracts all text from a PPT file,Sample PPT file with text is available,1. Load the PPT using,Text content from the PPT is extracted successfully,Pass
+,,,,,PPTLoader,,
+,,,,,".
+2. Call",,
+,,,,,extract_text(),,
+,,,,,.,,
+TC010,PPT Link Extraction,PPT,Test if hyperlinks from the PPT file are correctly extracted,Sample PPT file with hyperlinks is available,"1. Load the PPT.
+2. Call",All hyperlinks from the PPT are returned as a list of strings,Pass
+,,,,,extract_links(),,
+,,,,,.,,
+TC011,PPT Image Extraction,PPT,Verify that all images are extracted from the PPT file,Sample PPT file with images is available,"1. Load the PPT.
+2. Call",All images from the PPT are extracted and saved correctly,Pass
+,,,,,extract_images(),,
+,,,,,.,,
+TC012,PPT with No Links,PPT,Ensure that,Sample PPT without hyperlinks is available,"1. Load the PPT.
+2. Call",Returns an empty list without errors,Pass
+,,,extract_links(),,extract_links(),,
+,,,returns an empty list if no links,,.,,
+TC013,PDF Complex Table Extraction,PDF,Verify correct extraction of complex tables in PDFs,Sample PDF file with complex tables is available,"1. Load the PDF.
+2. Call",Text extracted should maintain the structure of the table,Pass
+,,,,,extract_text(),,
+,,,,,and manually inspect output.,,
+TC014,DOCX Complex Table Extraction,DOCX,Verify correct extraction of complex tables in DOCX,Sample DOCX file with complex tables is available,"1. Load the DOCX.
+2. Call",Text extracted should maintain the structure of the table,Pass
+,,,,,extract_text(),,
+,,,,,and manually inspect output.,,
+TC015,Invalid File Type Handling,Error Cases,Ensure the system handles unsupported file types gracefully,"Invalid file (e.g., .txt file) is available","1. Load an invalid file type (e.g., .txt).
+2. Call any extract method.",Should raise a,Pass
+,,,,,,NotSupportedError,
+,,,,,,or similar and not crash the system,
+TC016,Large PDF File Extraction,PDF,Test performance and correctness with a large PDF file,Large PDF file (over 50 MB) is available,"1. Load the large PDF.
+2. Call",Should handle large files efficiently and extract data correctly,Pass
+,,,,,extract_text(),,
+,,,,,",",,
+,,,,,extract_images(),,
+,,,,,.,,
+TC017,Large DOCX File Extraction,DOCX,Test performance and correctness with a large DOCX file,Large DOCX file (over 50 MB) is available,"1. Load the large DOCX.
+2. Call",Should handle large files efficiently and extract data correctly,Pass
+,,,,,extract_text(),,
+,,,,,",",,
+,,,,,extract_images(),,
+,,,,,.,,
+TC018,Corrupted PDF File Handling,Error Cases,Ensure the system handles corrupted PDF files gracefully,A corrupted PDF file is available,"1. Load the corrupted PDF.
+2. Call",Should raise an appropriate error and not crash,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC019,Corrupted DOCX File Handling,Error Cases,Ensure the system handles corrupted DOCX files gracefully,A corrupted DOCX file is available,"1. Load the corrupted DOCX.
+2. Call",Should raise an appropriate error and not crash,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC020,PDF Text with Special Characters,PDF,Ensure the system extracts text with special characters correctly,"PDF with special characters like ©, €, etc., is available","1. Load the PDF.
+2. Call",Special characters are extracted correctly,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC021,DOCX Text with Special Characters,DOCX,Ensure the system extracts text with special characters correctly,DOCX with special characters is available,"1. Load the DOCX.
+2. Call",Special characters are extracted correctly,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC022,PPT Text with Special Characters,PPT,Ensure the system extracts text with special characters correctly,PPT with special characters is available,"1. Load the PPT.
+2. Call",Special characters are extracted correctly,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC023,Missing File Handling,Error Cases,Ensure the system handles missing files gracefully,No file available,1. Attempt to load a missing file path.,"System raises an appropriate error (e.g.,",Pass
+,,,,,,FileNotFoundError,
+,,,,,,),
+TC024,Unsupported File Format Error,Error Cases,Ensure the system throws an error for unsupported file types,An unsupported file format like,1. Load the unsupported file type.,"System raises an appropriate error (e.g.,",Pass
+,,,,.txt,,UnsupportedFileFormatError,
+,,,,or,,),
+,,,,.xls,,,
+,,,,is available,,,
+TC025,PDF with Password Protection,PDF,Ensure the system handles password-protected PDF files,A password-protected PDF file is available,"1. Load the PDF.
+2. Call",Should raise an error for password-protected PDFs,Pass
+,,,,,extract_text(),,
+,,,,,.,,
+TC026,Large DOCX with Complex Tables,DOCX,Ensure large DOCX files with complex tables are handled correctly,A large DOCX file with complex tables is available,"1. Load the DOCX.
+2. Call",Tables should be extracted correctly and in reasonable time,Pass
+,,,,,extract_text(),,
+,,,,,and check table formatting.,,
+TC027,Complex PPT Slide Extraction,PPT,"Verify that complex PPT slides with text, images, and links extract",A complex PPT file is available,"1. Load the PPT.
+2. Call","Text, links, and images should all be extracted successfully",Pass
+,,,,,extract_text(),,
+,,,,,",",,
+,,,,,extract_links(),,
+,,,,,",",,
+,,,,,extract_images(),,
+,,,,,.,,
+TC028,Large PPT File Performance,PPT,Test performance with a large PPT file,A large PPT file is available,"1. Load the large PPT.
+2. Call",Extraction should complete without crashes or performance degradation,Pass
+,,,,,extract_text(),,
+,,,,,",",,
+,,,,,extract_images(),,
+,,,,,.,,
+TC029,PDF with Complex Layout,PDF,"Ensure PDFs with complex layouts (columns, footnotes) are handled",A PDF with a complex layout is available,"1. Load the PDF.
+2. Call",Text should be extracted maintaining the column and footnote structure,Pass
+,,,,,extract_text(),,
+,,,,,and manually verify formatting.,,
+TC030,DOCX with Nested Lists,DOCX,Ensure DOCX files with nested lists are extracted correctly,A DOCX file with nested bullet/numbered lists is available,"1. Load the DOCX.
+2. Call",Lists should maintain their structure in the extracted text,Pass
+,,,,,extract_text(),,
+,,,,,and manually inspect output.,,
+TC031,Image-Heavy PPT Extraction,PPT,Verify that image-heavy PPTs are processed efficiently,An image-heavy PPT file is available,"1. Load the PPT.
+2. Call",All images should be extracted and saved correctly,Pass
+,,,,,extract_images(),,
+,,,,,.,,
+TC032,PDF with Annotations Handling,PDF,"Ensure PDFs with annotations (highlighting, comments) are handled",A PDF with annotations is available,"1. Load the PDF.
+2. Call",Text extraction should not miss content under annotations,Pass
+,,,,,extract_text(),,
+,,,,,and manually inspect output.,,
+TC033,DOCX with Embedded Objects,DOCX,"Ensure DOCX files with embedded objects (charts, videos) are handled",A DOCX with embedded objects is available,"1. Load the DOCX.
+2. Call","Should extract text, and identify any embedded objects (extract where possible)",Pass
+,,,,,extract_text(),,
+,,,,,",",,
+,,,,,extract_images(),,
+,,,,,.,,
+TC034,Multiple Files Simultaneous Handling,Performance,Ensure the system can handle multiple files at once without issues,"Multiple files (PDF, DOCX, PPT) are available","1. Load multiple files simultaneously.
+2. Call extraction methods on each.",System should handle multiple file extractions without crashing,Pass
+TC035,"Image Format Verification (PNG, JPG)",Images,Ensure that extracted images from any file type are saved in correct format,"PDF/DOCX/PPT files with various image formats (PNG, JPG) are available","1. Load the file.
+2. Extract images.","Images should be saved in their original format (PNG, JPG, etc.)",Pass
+TC036,Metadata Extraction for PDF,PDF,"Ensure the system can extract metadata (author, title, etc.) from PDFs",A PDF with metadata is available,"1. Load the PDF.
+2. Call a","Metadata (author, title, creation date) is extracted successfully",Pass
+,,,,,extract_metadata(),,
+,,,,,method.,,
+TC037,Metadata Extraction for DOCX,DOCX,Ensure the system can extract metadata from DOCX files,A DOCX with metadata is available,"1. Load the DOCX.
+2. Call","Metadata (author, title, creation date) is extracted successfully",Pass
+,,,,,extract_metadata(),,
+,,,,,method.,,

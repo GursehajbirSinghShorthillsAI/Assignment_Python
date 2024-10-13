@@ -1,0 +1,21 @@
+Data Name,Language,Quantity
+,,
+glave-rag-v1,English,"51,153"
+CovidQA,English,"1,519"
+E-Manual,English,"1,186"
+PubMedQA,English,"22,050"
+MS Marco,English,"2,267"
+FinQA,English,"14,268"
+ExpertQA,English,"1,824"
+HotpotQA,English,"17,796"
+TechQA,English,"1,496"
+HAGRID,English,"3,214"
+DelusionQA,English,"1,642"
+BioASQ,English,"4,619"
+CUAD,English,"2,040"
+TAT-QA,English,"29,766"
+BaiduSTI,Chinese,"4,032"
+DuReader,Chinese,"10,000"
+BaiduBaike,Chinese,"13,615"
+Wiki,Chinese,"9,265"
+,,
