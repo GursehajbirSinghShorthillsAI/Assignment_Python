@@ -56,6 +56,8 @@ The script will process the PDF or DOCX file based on the file extension and per
 - Extract images and save them to the output directory.
 - Extract tables and save them to separate .csv files.
 - Extract detailed metadata (fonts, sizes, and text properties) and save it to a .json file.
-  
 
+## Screenshots 
+![image](https://github.com/user-attachments/assets/4d45fe9d-1042-47cd-b0d0-2b0ccd89e007)
+![image](https://github.com/user-attachments/assets/25093c4d-f376-4daf-86fc-d0a3d260c2b5)
 
