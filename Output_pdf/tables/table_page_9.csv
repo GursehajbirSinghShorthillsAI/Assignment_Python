@@ -1,0 +1,100 @@
+"4.4
+TTFT PERFORMANCE
+Now we assess the impact of TurboRAG on inference speed. All models are evaluated on the
+LongBench dataset, with specific focus on its multi-document QA tasks. The experiments were
+conducted on the Huggingface transformers2 using FlashAttention2(Dao, 2023) and an NVIDIA
+A100 80GB GPU. As shown in Table 2, TurboRAG-reordered improves the performance of TTFT
+by 8.6x on average, with a peak speedup of 9.4x, compared to Na¨ıve RAG for long-documents
+processing. This reduction substantiates that TurboRAG can significantly reduce TTFT, thereby
+enhancing user experience, and consequently enables the expansion of RAG applications to cases
+with stringent latency requirement. The main reason of reduction in the TTFT is that the online
+computation overhead of KV caches for long text is largely alleviated as TurboRAG shifts the KV
+cache computation for each document to offline processing.
+4.5
+BATCH SCALING
+Compared to Na¨ıve RAG, TurboRAG requires to transfer KV cache from CPU to GPU, which may
+introduce extra communication overhead that degrades performance measured by TTFT. To evaluate
+the magnitude of the communication cost, we carried out experiments under a fixed total recall text
+length of 8192 and a query length of 128. We gathered a series of TTFT numbers with batch
+size ranging from 1 to 8 in two settings. One transferred the KV cache from CPU to GPU using
+PCIE Gen4, while the other assumed that the KV cache was prefetched to the GPU memory thereby
+excluding the impact of communication. Additionally, we measured the computational load for both
+Na¨ıve RAG and TurboRAG under different settings. The method for calculating computational load
+is detailed in Appendix C.
+Table 4: Generation throughput and latency on an A100 GPU.
+Batch size
+Metric
+Naive
+Turbo
+Speedup
+Turbo
+w/o h2d
+Speedup
+w/o h2d
+1
+TTFT (ms)
+711
+175
+4.1x
+44
+16.1x
+TFLOPs
+136.36
+2.09
+2.09
+2
+TTFT (ms)
+1408
+325
+4.3x
+56
+25.1x
+TFLOPs
+272.72
+4.19
+4.19
+4
+TTFT (ms)
+2842
+666
+4.3x
+97
+29.3x
+TFLOPs
+545.46
+8.39
+8.39
+6
+TTFT (ms)
+4373
+928
+4.7x
+134
+32.6x
+TFLOPs
+818.20
+12.58
+12.58
+8
+TTFT (ms)
+5812
+1429
+4.1x
+177
+32.8x
+TFLOPs
+1090.93
+16.78
+16.78
+From Table 4, it is evident that as the batch size increases, the speedup ratio (decrease in TTFT) also
+increases without any degradation in performance. When the batch size is small, the pressure on
+computational resources is insufficient, resulting in a TTFT speedup value of only 16.1x between
+Na¨ıve RAG and TurboRAG. As the batch size increases, GPU becomes over-utilized for naive RAG,
+thus leading to substantially higher latency in TTFT compared to TurboRAG. Table 4 also illustrates
+that, even in scenarios requiring the transfer of the KV cache from host to device (h2d), TurboRAG
+still achieves a fourfold speed improvement compared to Na¨ıve RAG. In addition, we collected the
+TFLOPs consumed by both the n¨aive RAG and TurboRAG for each batch size, as shown in the
+Metric column of Table 4. It can be seen that TurboRAG achieves astonishingly less TFLOPs, i.e.
+approximately 98.46% reduction compared to Na¨ıve RAG.
+2https://huggingface.co/
+"
