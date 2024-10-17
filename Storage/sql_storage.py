@@ -1,23 +1,15 @@
 import sys
-from Storage import Storage
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from .storage import Storage
 import mysql.connector
 from mysql.connector import Error
+from dotenv import load_dotenv
+load_dotenv()
 
 class SQLStorage(Storage):
-    """
-    Concrete class for storing extracted data into a MySQL database.
-    This class handles connections to a MySQL database and provides methods to store various types of data.
-    """
 
     def __init__(self, host, user, password, database):
-        """
-        Initialize the SQLStorage with database connection parameters.
-        Args:
-            host (str): The hostname or IP of the MySQL server.
-            user (str): The username used to authenticate with MySQL.
-            password (str): The password used to authenticate with MySQL.
-            database (str): The name of the database to use.
-        """
         self.host = host
         self.user = user
         self.password = password
@@ -26,10 +18,6 @@ class SQLStorage(Storage):
         self._connect()
 
     def _connect(self):
-        """
-        Attempts to establish a connection to the MySQL database.
-        Prints a message indicating the connection status.
-        """
         try:
             self.connection = mysql.connector.connect(
                 host=self.host,
@@ -44,12 +32,7 @@ class SQLStorage(Storage):
             sys.exit(1)
 
     def _execute_query(self, query, data=None):
-        """
-        Executes a SQL query with optional parameters.
-        Args:
-            query (str): The SQL query to execute.
-            data (tuple, optional): The data to be inserted into the database, if applicable.
-        """
+
         cursor = self.connection.cursor()
         try:
             cursor.execute(query, data)

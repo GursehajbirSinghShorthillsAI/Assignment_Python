@@ -1,0 +1,586 @@
+[
+    {
+        "text": "TURBORAG: ACCELERATING RETRIEVAL-",
+        "style": "Normal"
+    },
+    {
+        "text": "AUGMENTED GENERATION WITH PRECOMPUTED KV CACHES FOR CHUNKED TEXT",
+        "style": "Normal"
+    },
+    {
+        "text": "Songshuo Lu Hua Wang Yutian Rong Zhi Chen∗ Yaohua Tang†",
+        "style": "Normal"
+    },
+    {
+        "text": "Moore Threads AI",
+        "style": "Normal"
+    },
+    {
+        "text": "ABSTRACT",
+        "style": "Normal"
+    },
+    {
+        "text": "Current Retrieval-Augmented Generation (RAG) systems concatenate and process numerous retrieved document chunks for prefill which requires a large volume of computation, therefore leading to significant latency in time-to-first-token (TTFT). To reduce the computation overhead as well as TTFT, we introduce TurboRAG, a novel RAG system that redesigns the inference paradigm of the current RAG sys-tem by first pre-computing and storing the key-value (KV) caches of documents offline, and then directly retrieving the saved KV cache for prefill. Hence, online computation of KV caches is eliminated during inference. In addition, we pro-vide a number of insights into the mask matrix and positional embedding mech-anisms, plus fine-tune a pretrained language model to maintain model accuracy of TurboRAG. Our approach is applicable to most existing large language models and their applications without any requirement in modification of models and in-ference systems. Experimental results across a suite of RAG benchmarks demon-strate that TurboRAG reduces TTFT by up to 9.4x compared to the conventional RAG systems (on an average of 8.6x), but reserving comparable performance to the standard RAG systems.",
+        "style": "Normal"
+    },
+    {
+        "text": "INTRODUCTION",
+        "style": "Normal"
+    },
+    {
+        "text": "Retrieval-augmented generation (RAG) systems have been emerged as a promising direction to al-leviate some challenges faced by large models (LMs), e.g., hallucinations (Mallen et al., 2023; Khandelwal et al., 2020; Izacard et al., 2022). As shown in Figure 1a that large-scale documents in these systems are typically segmented into a myriad of short document chunks that can be embedded for retrieval. Upon the arrival of a user-input query, the most relevant chunks are then retrieved and prepended to the input as an augmented query fed to an LM for prefill, followed by decoding in an autoregressive (AR) manner to generate responses. RAG system effectively utilizes factual docu-ments as supplementary data to enhance model’s ability to generate more accurate and contextually rich responses, hence widely adopted by various applications, such as question answering (Siriward-hana et al., 2023; Han et al., 2024) and content creation (Khattab et al., 2022), etc. However, existing RAG systems come with several limitations from the system perspective.",
+        "style": "Normal"
+    },
+    {
+        "text": "First, repeatedly recalled document chunks require recomputation of the key-value (KV) caches, leading to redundant computation. Second, the augmented document contains substantially more tokens for prefill which contributes to considerably more computational overhead since the compu-tation cost of KV caches is quadratic to the input sequence length. It, hence, significantly increases TTFT, making RAG systems possibly unsuitable for applications that have stringent constraints on response time. Third, as a side effect of the requirement in substantial computation resources for concatenated document prefill, the batch size on a single device might be limited.",
+        "style": "Normal"
+    },
+    {
+        "text": "The fundamental reason for these issues lies in prefill paradigm of the current RAG system, which involves online computation of the concatenated long documents, i.e. it collects the most relevant documents and then performs prefill for them together. A natural question arises: can we alter this",
+        "style": "Normal"
+    },
+    {
+        "text": "∗Corresponding author. zhic@mthreads.com",
+        "style": "Normal"
+    },
+    {
+        "text": "†tangyaohua28@gmail.com",
+        "style": "Normal"
+    },
+    {
+        "text": "paradigm to remarkably reduce the computation overhead of prefill? If we were able to precompute the KV caches of the retrieved documents offline and let the prefill stage directly uses these saved KV caches to rebuild the complete KV cache for a request online, a large body of online computation can then be completely eliminated, thus significantly reducing system’s TTFT and improving inference efficiency. This essentially transforms the RAG’s prefill stage into a hybrid paradigm combining both offline and online processing. Compared to the conventional RAG system, the only issue is that the transformation may result in inconsistent attention mask matrix and position IDs. Resolving these inconsistencies would yield an efficient RAG solution.",
+        "style": "Normal"
+    },
+    {
+        "text": "In this paper, we propose TurboRAG, which is grounded in two observations. First, as illustrated in Figure 2a, cross-attention among different documents is exceedingly sparse in RAG models and the text contents between most documents are actually independent. Second, for relative position embedding techniques, such as RoPE(Su et al., 2024), only the relative distance between two po-sitions matters. Consequently, the relative positional embeddings of a document are equivalent no matter the KV cache is computed using the individual document or the entire concatenated docu-ments. Inspired from these observations, TurboRAG first pre-computes and stores the KV caches for each document offline. It then injects the relevant KV caches of the retrieved documents into a user request to construct the complete KV caches for prefill using the independent attention mask matrix from the Figure 2c and the standard RoPE.",
+        "style": "Normal"
+    },
+    {
+        "text": "Compared to the conventional RAG system, experimental results across the LongBench multi-document QA benchmarks demonstrate that TurboRAG reduces TTFT by up to 9.4x and on an average of 8.6x, with comparable accuracy to the baseline. Simultaneously, during online infer-ence, TurboRAG reduces computational resource utilization by 98.46% compared to standard RAG, which significantly increases the maximum supported batch size and enhances throughput. Addi-tionally, regression experiments indicate that TurboRAG does not exhibit any significant degradation in other general capabilities compared to standard RAG.",
+        "style": "Normal"
+    },
+    {
+        "text": "In summary, we make three major contributions. First, we design a novel pipeline that decomposes the prefill stage of conventional RAG systems into offline and online phases to notably reduce the overhead of KV cache computation. Second, we propose simple yet effective techniques to handle attention mask and position IDs so that model accuracy is maintained. Third, we achieve a substan-tial improvement of 9.4x in TTFT over the state-of-the-art multi-document QA benchmarks without compromising accuracy.",
+        "style": "Normal"
+    },
+    {
+        "text": "RELATED WORK",
+        "style": "Normal"
+    },
+    {
+        "text": "Retrieval-Augmented Generation (RAG) (Lewis et al., 2020) has achieved significant progress in natural language processing by integrating large language models (LLMs) with external knowledge databases. This integration enhances the ability of generative models to produce accurate, relevant, and context-rich responses. Recent studies (Borgeaud et al., 2022; Jiang et al., 2024; Trivedi et al., 2022; Ram et al., 2023) have demonstrated that RAG significantly outperforms pure generative models across various benchmarks, thereby gathering considerable amounts of research interests in various domains such as question answering (Siriwardhana et al., 2023; Han et al., 2024), code gen-eration (Lu et al., 2022), and content creation (Khattab et al., 2022), etc. However, as a relative new research topic, the current RAG systems still suffer from some drawbacks, among which low perfor-mance and long latency are the most prominent ones. Addressing these problems would effectively make RAG more applicable to latency-sensitive LLM tasks.",
+        "style": "Normal"
+    },
+    {
+        "text": "As illustrated in Figure 1a, the workflow of a naive RAG system comprises two steps: retrieval and generation, combining offline preparation with online processing to enhance performance. In the offline phase, RAG utilizes embedding models such as BGE (Chen et al., 2024a)) and GTE (Li et al., 2023) to convert external knowledge sources (e.g., document chunks) into high-dimensional vectors, which are then indexed into a specialized vector database. Upon receiving a user request, RAG first accesses this vector database to perform a similarity search, retrieving documents that best match the request based on semantic content. Subsequently, RAG integrates the content of these retrieved documents with the original user request to form an augmented query, which is input into the LLM to generate a more informative and contextually relevant response (Topsakal & Akinci, 2023).",
+        "style": "Normal"
+    },
+    {
+        "text": "(a) Standard RAG (b) TurboRAG",
+        "style": "Normal"
+    },
+    {
+        "text": "Figure 1: Pipeline of Standard RAG and TurboRAG. TurboRAG pre-compute the KV cache for each chunk of text and reuse during RAG inference.",
+        "style": "Normal"
+    },
+    {
+        "text": "Researchers have proposed various methods to optimize the performance of RAG systems. Some ap-proaches modify the attention computation mechanism to reduce computational complexity (Wang et al., 2020; Choromanski et al., 2020; Monteiro et al., 2024). Others focus on compressing and merging the KV cache, then dynamically utilizing cached KV states to optimize inference efficiency and reduce the computational load of processing long sequences (Wang et al., 2024; Liu et al., 2024; Zhang et al., 2024). A few previous work concentrated on distributed deployment of large-scale language models, mainly targeting large-scale distributed inference (Jin et al., 2024b).",
+        "style": "Normal"
+    },
+    {
+        "text": "However, existing methods primarily address general long-text generation. In RAG systems, since the retrieved document fragments are dynamic each time, directly concatenating precomputed KV caches might notably drop model accuracy. Moreover, RAG systems still face challenges unique to multi-document concatenation and redundant computation. For instance, Jin et al. (2024a) proposed a multi-level caching system that effectively caches and reuses intermediate states of documents retrieved based on different user queries. It reportedly reduces redundant computation, but this work only focuses on the intermediate results and does not analyze model accuracy.",
+        "style": "Normal"
+    },
+    {
+        "text": "To address the performance issues, we propose TurboRAG, a novel RAG optimization scheme by precomputing and storing the key-value (KV) caches of document fragments offline. During online generation, the model directly utilizes these precomputed KV caches, avoiding redundant computa-tion of the retrieved document fragments. To be best of our knowledge, this is the first work in the literature that attempts to redesign inference paradigm of the current RAG system by transforming the online computation of KV caches for the retrieved documents into offline processing. This ap-proach significantly reduces the computational complexity of the RAG systems and could become a powerful enabler for LLM applications that have restricted latency constraints.",
+        "style": "Normal"
+    },
+    {
+        "text": "METHODOLOGY",
+        "style": "Normal"
+    },
+    {
+        "text": "This section presents TurboRAG, a novel approach to improve the performance of conventional RAG systems without sacrificing accuracy. We formalize the problem in Section 3.1 and discuss the differences in the attention mask matrix and position IDs between TurboRAG and existing RAG",
+        "style": "Normal"
+    },
+    {
+        "text": "(a) Casual Attention (b) Composite Positions (c) Reordered Positions",
+        "style": "Normal"
+    },
+    {
+        "text": "Figure 2: The first row presents three distinct setting of attention mask matrices and position IDs. (a) Lower triangular casual attention, where the entire context is attended to. (b) Independent Atten-tion and Composite Positions, which use the original position IDs for each chunk. (c) Independent Attention and Reordered Positions, where each document can only attend to itself and rearrange the position IDs for tokens in chunk to standard monotone increasing numbers. In the second and third rows, we present an instance of RAG to visualize and analyze the distribution of the atten-tion matrices under different settings, as well as the distribution of attention scores from the query to the context chunks. This instance consists of four text chunks and a user query, as detailed in Appendix A. In the standard setting shown in the first column of second row, it can be observed that the attention scores between different chunks are quite sparse; each document primarily fo-cuses on its internal information. Furthermore, in the third row, the distribution of attention scores from the query to the context chunks indicates that even when the attention between documents is fully masked, the distribution of attention scores from the query to the documents does not exhibit significant variation, remaining concentrated in the documents that contain relevant information.",
+        "style": "Normal"
+    },
+    {
+        "text": "systems in Section 3.2. Section 3.3 explains how we trained the model to adapt to the new attention mask matrix and position IDs. We introduce the TurboRAG inference pipeline in Section 3.4.",
+        "style": "Normal"
+    },
+    {
+        "text": "3.1 PROBLEM FORMALIZATION",
+        "style": "Normal"
+    },
+    {
+        "text": "Conventionally, given a user query q, we retrieve top k document chunks, [c1, . . . , ck], and send them to a LLM that sequentially generates the textual outputs. We denote the number of tokens in x as len(x) and we assume len(ci) = l. In existing RAG, we first compute the prefill using",
+        "style": "Normal"
+    },
+    {
+        "text": "and the concatenated c, denoted as a concatenated context sequence [c1, . . . , ck, q], to obtain the corresponding hidden states Xc. At each decoding step t, the model computes attention scores based on Xc. Let X = [X1, X2, . . . , Xt] be the hidden states of the tokens generated so far, where Xt is the hidden state for the current token being generated. The model computes the query Qt, key Ki, and value Vi matrices for context at position i:",
+        "style": "Normal"
+    },
+    {
+        "text": "Here, WQ, WK , and WV are the learned weight matrices. The attention score is computed using the dot product of the query and the key, scaled by the square root of the dimension of the key",
+        "style": "Normal"
+    },
+    {
+        "text": "vectors d:",
+        "style": "Normal"
+    },
+    {
+        "text": "d",
+        "style": "Normal"
+    },
+    {
+        "text": "For RoPE, it is necessary to multiply Qt and Ki by their corresponding position embedding sepa-rately as shown in Equation 3:",
+        "style": "Normal"
+    },
+    {
+        "text": "where θm = 10000−2m/d. A benefit of this equation is that the position embedding for Q and K can be computed independently. Furthermore, the final result of the multiplication of the two position embeddings is solely dependent on the positional difference between them. Since this is an autoregressive model, we need to apply a causal mask to ensure that the model does not attend to future tokens. This is typically achieved by multiplying with a lower triangular masking matrix:",
+        "style": "Normal"
+    },
+    {
+        "text": "where M is the masking matrix. K′ and V are generally referred to as KV cache, which is stored for the subsequent computation of attention scores in the later regressive decoding. The attention scores are then normalized using the softmax function to obtain attention weights. Finally, the output for the current token is computed as a weighted sum of the value vectors.",
+        "style": "Normal"
+    },
+    {
+        "text": "3.2 POSITION ID REARRANGEMENT",
+        "style": "Normal"
+    },
+    {
+        "text": "This section presents the technique we developed to ensure that the concatenated KV cache com-puted offline for each document is as effective as the KV cache computed using the whole originally retrieved documents. Figure 2 illustrates the differences in the attention mask matrix and position IDs between the two methods.",
+        "style": "Normal"
+    },
+    {
+        "text": "The online concatenation of the KV cache requires that there is no cross-attention between multiple document chunks during inference, which is a significant distinction from the lower triangular mask matrix employed by the current RAG system. We denote this new attention modality in Figure 2c as Independent Attention, which effectively simulates the scenario of retrieving the KV caches and concatenating them. As illustrated in Figure 2c, cross-attention between documents are all set to zero, and when decoding the answer, attention scores are computed among query, answer and all documents.",
+        "style": "Normal"
+    },
+    {
+        "text": "Another issue arising from TurboRAG is the computation of position embeddings. The key cache computed for each ci are denoted as Kci . If the KV caches are simply concatenated, all Kci will consist of position IDs ranging from 0 to l. Consequently, the finally combined IDs will be represented as [0, . . . , l, 0, . . . , l, 0, . . . , l], which we refer to as composite positions. This presents a problem: when decoding at step t, the positional difference between an element in Kci and t does not correspond to the actual token index difference. For instance, the third element in Xc2 at this point has a positional difference of t−3, while the actual token index difference should be t−(l+3).",
+        "style": "Normal"
+    },
+    {
+        "text": "To resolve this issue, we rearrange the positions of all key cache to obtain [0, . . . , l, l+1, . . . , 2l, 2l+ 1, . . . , k · l]. We refer to this new positions arrangement as reordered positions. Equation 3 demon-strates that RoPE can effectively support reordered positions; it suffices to retain the K and V from Equation 1 when saving the KV cache. After concatenating KV caches, we can compute the key cache K′ using Equation 3 with the new position IDs, which is quite straightforward. For Q, we can leverage Equation 3 to get Q′ using its position ID, which is the same as the standard RAG system.",
+        "style": "Normal"
+    },
+    {
+        "text": "However, the new attention mask matrix and position embedding could lead to a significant accuracy drop in question-answering tasks. To mitigate this issue, we need to specifically train the model to make the LLM be able to handle this new setting. To compare the effects of different positional",
+        "style": "Normal"
+    },
+    {
+        "text": "indices, we will conduct experiments on both reordered positions and composite positions in Section 4. Next, we will introduce the training details.",
+        "style": "Normal"
+    },
+    {
+        "text": "3.3 ADAPTING LLMS FOR PRECOMPUTED CACHE CONCATENATION",
+        "style": "Normal"
+    },
+    {
+        "text": "In order to enable a pretrained LM to execute diverse instructions, it is a common practice to fine-tune the LM using a pile of specifically created instruction learning data that encompasses various instruction tasks. For example, we usually need specialized data to enhance the reading compre-hension capability used in a RAG model. Instruction learning data is generally constructed in the following format to train the model.",
+        "style": "Normal"
+    },
+    {
+        "text": "You are an accurate and reliable AI assistant capable of answering questions by referencing external documents. Please note that the external documents may not always be related to the question. The documents are as follows:",
+        "style": "Normal"
+    },
+    {
+        "text": "<|doc start|>{chunk 1}<|doc end|>",
+        "style": "Normal"
+    },
+    {
+        "text": "<|doc start|>{chunk 2}<|doc end|>",
+        "style": "Normal"
+    },
+    {
+        "text": "<|doc start|>{chunk 3}<|doc end|>",
+        "style": "Normal"
+    },
+    {
+        "text": "...",
+        "style": "Normal"
+    },
+    {
+        "text": "If the information in the documents contain the correct answer, you will provide an accurate response. If the documents do not contain the answer, you will refuse to answer.",
+        "style": "Normal"
+    },
+    {
+        "text": "Question: {que}",
+        "style": "Normal"
+    },
+    {
+        "text": "Standard supervised fine-tuning (SFT) typically employs the attention mask matrix and position embeddings shown in Figure 2a to fine-tune the LM using the data with the above format. However, to make sure that the pretrained LM can accommodate to new patterns exhibited in the mask matrix and position embedding during inference, TurboRAG used the mask matrix and position embedding in Figure 2b and Figure 2c to fine-tune the LM. After the fine-tuning, the LM would be able to see the same context KV cache produced from training while conducting inference. Therefore, it would not experience the accuracy regression in question-answering tasks.",
+        "style": "Normal"
+    },
+    {
+        "text": "3.4 THE TURBORAG PIPELINE",
+        "style": "Normal"
+    },
+    {
+        "text": "With the fine-tuned LLM, the inference pipeline of TurboRAG is enumerated as follows (Figure 1b):",
+        "style": "Normal"
+    },
+    {
+        "text": "Document Encoding (offline): The documents are encoded into embedding vectors using a transformer-based model like Bert(Devlin et al., 2019). These document embeddings are stored in a vector index to facilitate efficient similarity search.",
+        "style": "Normal"
+    },
+    {
+        "text": "Document Prefill (offline): Use an LLM to perform prefill offline. It computes the KV caches for each document and saves them in the database.",
+        "style": "Normal"
+    },
+    {
+        "text": "Query Encoding: The input query is encoded into a vector using the same Bert model.",
+        "style": "Normal"
+    },
+    {
+        "text": "Retrieval: The encoded query is used to perform a similarity search in the vector database to retrieve the most relevant documents.",
+        "style": "Normal"
+    },
+    {
+        "text": "Contextual KV cache Formation (online): Retrieve the stored KV cache corresponding to the documents and concatenate them in the way demonstrated in Figure 2. The combined KV cache forms a comprehensive context for the query.",
+        "style": "Normal"
+    },
+    {
+        "text": "KV Cache Prefill (online): The LLM processes prefill using the combined KV caches for the input query.",
+        "style": "Normal"
+    },
+    {
+        "text": "Response Generation (online): After the prefill phase is accomplished, the LLM starts to gen-erate the response and return to the user.",
+        "style": "Normal"
+    },
+    {
+        "text": "It is evident that the usage process of TurboRAG is fundamentally consistent with that of standard RAG, making it highly convenient to use. The modified implementation code and model have been made available at: https://github.com/MooreThreads/TurboRAG",
+        "style": "Normal"
+    },
+    {
+        "text": "EXPERIMENTS",
+        "style": "Normal"
+    },
+    {
+        "text": "This section evaluates performance and accuracy of a number of TurboRAG model variants against the conventional RAG models. Specifically, we seek to answer the questions below in this section:",
+        "style": "Normal"
+    },
+    {
+        "text": "How does TurboRAG perform on document question-answering (QA)?",
+        "style": "Normal"
+    },
+    {
+        "text": "What is the overall TTFT performance of TurboRAG compared against the Naive¨ RAG system on popular benchmarks?",
+        "style": "Normal"
+    },
+    {
+        "text": "How large is the regression in the general capabilities of TurboRAG models?",
+        "style": "Normal"
+    },
+    {
+        "text": "How efficient is TurboRAG in scaling inference batch sizes?",
+        "style": "Normal"
+    },
+    {
+        "text": "4.1 EXPERIMENT SETUP",
+        "style": "Normal"
+    },
+    {
+        "text": "We selected gpt-4o-2024-08-06 as the baseline due to its excellence in many benchmark suites. For brevity, we refer the conventional RAG system as ”Na¨ıve RAG”. We also fine-tuned two models for TurboRAG, namely TurboRAG-composite and TurboRAG-reordered corresponding to composite positions and reordered positions, respectively. All three models are fine-tuned on a dataset com-posed of 50% document QA data and 50% general tasks (e.g., code, dialogue, reasoning). All data are publicly accessible. For a detailed composition of the dataset, please refer to Appendix B.",
+        "style": "Normal"
+    },
+    {
+        "text": "Training Setup We base our training on Qwen2-7B(Yang et al., 2024), performing SFT on the aforementioned dataset. The fine-tuning was conducted on 32 NVIDIA A100 80GB GPUs with a batch size of 256 sequences, using a learning rate of 1e-5 and the AdamW optimizer(Loshchilov, 2017). Both Na¨ıve RAG and TurboRAG models were trained using the same data proportions to ensure comparability.",
+        "style": "Normal"
+    },
+    {
+        "text": "4.2 DOCUMENT QA ACCURACY",
+        "style": "Normal"
+    },
+    {
+        "text": "Let’s first evaluate the accuracy of document QA via intensive study on RGB Benchmark(Chen et al., 2024b), a bilingual benchmark designed to test a model’s ability to answer questions on retrieved documents. We followed the testing methodology provided by the official guidelines and let each query extract five documents during the evaluation. In addition, we also measured the accuracy with varying noise levels from 0.2 to 0.8 (e.g., Noise Ratio = 0.6 means 3 out of 5 retrieved documents are irrelevant or noisy). In order reveal the effectiveness of fine-tuning, we gauged accuracy of each TurboRAG configuration with and without fine-tuning.",
+        "style": "Normal"
+    },
+    {
+        "text": "As shown in Table 1, without fine-tuning, the accuracy drops significantly. Particularly, as the task difficulty increases (i.e., with a higher noise ratio), the accuracy can decline by nearly 20%. This is because the RAG models never learned the behavior of the new independent attention and composite positions employed in inference. Nonetheless, simply fine-tuning the model with the small dataset enables the TurboRAG models to attain impressive accuracy. Compared to the Naive¨ RAG, even without fine-tuning, independent attention and reordered positions only decrease the average ac-curacy by 5.8% (96.8 vs 91.0) and 4.2% (96.8 vs 92.6). After fine-tuning, TurboRAG-reordered and TurboRAG-composite can effectively maintain the benchmark accuracy gap within 1% com-pared to the Na¨ıve RAG. They also demonstrated comparable performance to GPT-4o across both Chinese and English datasets even under high-noise conditions. This highlights the effectiveness of the proposed modifications in preserving high accuracy when leveraging KV cache in document QA tasks.",
+        "style": "Normal"
+    },
+    {
+        "text": "To validate that our method proposed techniques are also directly applicable to long text input cases, we inspected TurboRAG’s accuracy on an additional long-text RAG benchmark dataset, Long-Bench(Bai et al., 2023). As shown in Table 2, TurboRAG also exhibits comparable answer accuracy to that of Na¨ıve RAG in such use scenarios.",
+        "style": "Normal"
+    },
+    {
+        "text": "In all experiments, the performance of TurboRAG-composite was consistently inferior to that of TurboRAG-reordered, particularly in more challenging contexts such as LongBench. This observa-tion further validates the necessity of maintaining the accuracy of relative positional differences in positional encoding.",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 1: Performance comparison of different models under various noise ratios in English and Chinese in RGB.",
+        "style": "Normal"
+    },
+    {
+        "text": "Chinese",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 2: Performance of Naive RAG and TurboRAG on LongBench multi-document QA (subcate-gories).",
+        "style": "Normal"
+    },
+    {
+        "text": "4.3 GENERAL CAPABILITY REGRESSION",
+        "style": "Normal"
+    },
+    {
+        "text": "To ensure that the non-standard attention masks and position IDs usded in fine-tuning does not negatively affect the models’ general capabilities, we accomplished regression tests using the Open-Compass1 benchmark on various mainstream tasks. As summarized in Table 3, the modifications had minimal impact on the base capabilities of the models. TurboRAG-reordered showed strong generalization across tasks, with no significant performance degradation compared to Na¨ıve RAG.",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 3: Regression experiments of Na¨ıve RAG and TurboRAG. Evaluated by OpenCompass.",
+        "style": "Normal"
+    },
+    {
+        "text": "https://github.com/open-compass/opencompass",
+        "style": "Normal"
+    },
+    {
+        "text": "4.4 TTFT PERFORMANCE",
+        "style": "Normal"
+    },
+    {
+        "text": "Now we assess the impact of TurboRAG on inference speed. All models are evaluated on the LongBench dataset, with specific focus on its multi-document QA tasks. The experiments were conducted on the Huggingface transformers2 using FlashAttention2(Dao, 2023) and an NVIDIA A100 80GB GPU. As shown in Table 2, TurboRAG-reordered improves the performance of TTFT by 8.6x on average, with a peak speedup of 9.4x, compared to Na¨ıve RAG for long-documents processing. This reduction substantiates that TurboRAG can significantly reduce TTFT, thereby enhancing user experience, and consequently enables the expansion of RAG applications to cases with stringent latency requirement. The main reason of reduction in the TTFT is that the online computation overhead of KV caches for long text is largely alleviated as TurboRAG shifts the KV cache computation for each document to offline processing.",
+        "style": "Normal"
+    },
+    {
+        "text": "4.5 BATCH SCALING",
+        "style": "Normal"
+    },
+    {
+        "text": "Compared to Na¨ıve RAG, TurboRAG requires to transfer KV cache from CPU to GPU, which may introduce extra communication overhead that degrades performance measured by TTFT. To evaluate the magnitude of the communication cost, we carried out experiments under a fixed total recall text length of 8192 and a query length of 128. We gathered a series of TTFT numbers with batch size ranging from 1 to 8 in two settings. One transferred the KV cache from CPU to GPU using PCIE Gen4, while the other assumed that the KV cache was prefetched to the GPU memory thereby excluding the impact of communication. Additionally, we measured the computational load for both Na¨ıve RAG and TurboRAG under different settings. The method for calculating computational load is detailed in Appendix C.",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 4: Generation throughput and latency on an A100 GPU.",
+        "style": "Normal"
+    },
+    {
+        "text": "From Table 4, it is evident that as the batch size increases, the speedup ratio (decrease in TTFT) also increases without any degradation in performance. When the batch size is small, the pressure on computational resources is insufficient, resulting in a TTFT speedup value of only 16.1x between Na¨ıve RAG and TurboRAG. As the batch size increases, GPU becomes over-utilized for naive RAG, thus leading to substantially higher latency in TTFT compared to TurboRAG. Table 4 also illustrates that, even in scenarios requiring the transfer of the KV cache from host to device (h2d), TurboRAG still achieves a fourfold speed improvement compared to Na¨ıve RAG. In addition, we collected the TFLOPs consumed by both the naive¨ RAG and TurboRAG for each batch size, as shown in the Metric column of Table 4. It can be seen that TurboRAG achieves astonishingly less TFLOPs, i.e. approximately 98.46% reduction compared to Na¨ıve RAG.",
+        "style": "Normal"
+    },
+    {
+        "text": "https://huggingface.co/",
+        "style": "Normal"
+    },
+    {
+        "text": "CONCLUSION AND DISCUSSION",
+        "style": "Normal"
+    },
+    {
+        "text": "This paper presented a novel approach to training and utilizing RAG that significantly reduces the time required for prefill computations when concatenating retrieved text fragments. Other tech-niques such as KV cache compression are orthogonal to our method, hence can be directly used to reduce latency and ease storage pressure. Our work raises a interesting question in whether cross-attention between different fragments is truly necessary. If three individuals have a piece of information, and I (Q) interact with each person (K) to obtain their information (V), and then in-tegrate these three pieces into a complete response, would this be sufficient? The three individuals might not need to communicate with each other. Furthermore, in the inference process for long texts, many computation of cross-attention might also be redundant.",
+        "style": "Normal"
+    },
+    {
+        "text": "Another intriguing point is the role of positional embedding. In experiments that extend context window of LLM via position interpolation, LLMs initially are pretrained with a short context length and then continued training with a small amount of data using a longer context length. This enables the model to interpolate positions and learn two sets of position embeddings. In our work, we also exposed the model to two different sets of positional embeddings, demonstrating LLM’s strong adaptability to various positional embeddings.",
+        "style": "Normal"
+    },
+    {
+        "text": "REFERENCES",
+        "style": "Normal"
+    },
+    {
+        "text": "Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan Zeng, Lei Hou, et al. Longbench: A bilingual, multitask benchmark for long context understanding. arXiv preprint arXiv:2308.14508, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Milli-can, George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, et al. Improving language models by retrieving from trillions of tokens. In International conference on machine learning, pp. 2206–2240. PMLR, 2022.",
+        "style": "Normal"
+    },
+    {
+        "text": "Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu. Bge m3-embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge dis-tillation. arXiv preprint arXiv:2402.03216, 2024a.",
+        "style": "Normal"
+    },
+    {
+        "text": "Jiawei Chen, Hongyu Lin, Xianpei Han, and Le Sun. Benchmarking large language models in retrieval-augmented generation. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 38, pp. 17754–17762, 2024b.",
+        "style": "Normal"
+    },
+    {
+        "text": "Krzysztof Choromanski, Valerii Likhosherstov, David Dohan, Xingyou Song, Andreea Gane, Tamas Sarlos, Peter Hawkins, Jared Davis, Afroz Mohiuddin, Lukasz Kaiser, et al. Rethinking attention with performers. arXiv preprint arXiv:2009.14794, 2020.",
+        "style": "Normal"
+    },
+    {
+        "text": "Tri Dao. Flashattention-2: Faster attention with better parallelism and work partitioning. arXiv preprint arXiv:2307.08691, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep bidirectional transformers for language understanding, 2019. URL https://arxiv.org/ abs/1810.04805.",
+        "style": "Normal"
+    },
+    {
+        "text": "Rujun Han, Yuhao Zhang, Peng Qi, Yumo Xu, Jenyuan Wang, Lan Liu, William Yang Wang, Bonan Min, and Vittorio Castelli. Rag-qa arena: Evaluating domain robustness for long-form retrieval augmented question answering. arXiv preprint arXiv:2407.13998, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "Gautier Izacard, Patrick Lewis, Maria Lomeli, Lucas Hosseini, Fabio Petroni, Timo Schick, Jane Dwivedi-Yu, Armand Joulin, Sebastian Riedel, and Edouard Grave. Atlas: Few-shot learning with retrieval augmented language models, 2022. URL https://arxiv.org/abs/2208. 03299.",
+        "style": "Normal"
+    },
+    {
+        "text": "Wenqi Jiang, Shuai Zhang, Boran Han, Jie Wang, Bernie Wang, and Tim Kraska. Piperag: Fast retrieval-augmented generation via algorithm-system co-design. arXiv preprint arXiv:2403.05676, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "Chao Jin, Zili Zhang, Xuanlin Jiang, Fangyue Liu, Xin Liu, Xuanzhe Liu, and Xin Jin. Ragcache: Efficient knowledge caching for retrieval-augmented generation. arXiv preprint arXiv:2404.12457, 2024a.",
+        "style": "Normal"
+    },
+    {
+        "text": "Yibo Jin, Tao Wang, Huimin Lin, Mingyang Song, Peiyang Li, Yipeng Ma, Yicheng Shan, Zhengfan Yuan, Cailong Li, Yajing Sun, et al. P/d-serve: Serving disaggregated large language model at scale. arXiv preprint arXiv:2408.08147, 2024b.",
+        "style": "Normal"
+    },
+    {
+        "text": "Urvashi Khandelwal, Omer Levy, Dan Jurafsky, Luke Zettlemoyer, and Mike Lewis. Generalization through memorization: Nearest neighbor language models, 2020. URL https://arxiv. org/abs/1911.00172.",
+        "style": "Normal"
+    },
+    {
+        "text": "Omar Khattab, Keshav Santhanam, Xiang Lisa Li, David Hall, Percy Liang, Christopher Potts, and Matei Zaharia. Demonstrate-search-predict: Composing retrieval and language models for knowledge-intensive nlp. arXiv preprint arXiv:2212.14024, 2022.",
+        "style": "Normal"
+    },
+    {
+        "text": "Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Kuttler,¨ Mike Lewis, Wen-tau Yih, Tim Rocktaschel,¨ et al. Retrieval-augmented genera-tion for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems, 33: 9459–9474, 2020.",
+        "style": "Normal"
+    },
+    {
+        "text": "Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan Zhang. Towards general text embeddings with multi-stage contrastive learning. arXiv preprint arXiv:2308.03281, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Yuhan Liu, Hanchen Li, Yihua Cheng, Siddhant Ray, Yuyang Huang, Qizheng Zhang, Kuntai Du, Jiayi Yao, Shan Lu, Ganesh Ananthanarayanan, et al. Cachegen: Kv cache compression and streaming for fast large language model serving. In Proceedings of the ACM SIGCOMM 2024 Conference, pp. 38–56, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "I Loshchilov. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101, 2017.",
+        "style": "Normal"
+    },
+    {
+        "text": "Shuai Lu, Nan Duan, Hojae Han, Daya Guo, Seung-won Hwang, and Alexey Svyatkovskiy. Reacc:",
+        "style": "Normal"
+    },
+    {
+        "text": "A retrieval-augmented code completion framework. arXiv preprint arXiv:2203.07722, 2022.",
+        "style": "Normal"
+    },
+    {
+        "text": "Alex Mallen, Akari Asai, Victor Zhong, Rajarshi Das, Daniel Khashabi, and Hannaneh Hajishirzi. When not to trust language models: Investigating effectiveness of parametric and non-parametric memories, 2023. URL https://arxiv.org/abs/2212.10511.",
+        "style": "Normal"
+    },
+    {
+        "text": "´",
+        "style": "Normal"
+    },
+    {
+        "text": "Joao˜ Monteiro, Etienne Marcotte, Pierre-Andre´ Noel,¨ Valentina Zantedeschi, David Vazquez,´ Nico-las Chapados, Christopher Pal, and Perouz Taslakian. Xc-cache: Cross-attending to cached con-text for efficient llm inference. arXiv preprint arXiv:2404.15420, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "Ori Ram, Yoav Levine, Itay Dalmedigos, Dor Muhlgay, Amnon Shashua, Kevin Leyton-Brown, and Yoav Shoham. In-context retrieval-augmented language models. Transactions of the Association for Computational Linguistics, 11:1316–1331, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Shamane Siriwardhana, Rivindu Weerasekera, Elliott Wen, Tharindu Kaluarachchi, Rajib Rana, and Suranga Nanayakkara. Improving the domain adaptation of retrieval augmented generation (rag) models for open domain question answering. Transactions of the Association for Computational Linguistics, 11:1–17, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan, Wen Bo, and Yunfeng Liu. Roformer: En-hanced transformer with rotary position embedding. Neurocomputing, 568:127063, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "Oguzhan Topsakal and Tahir Cetin Akinci. Creating large language model applications utilizing langchain: A primer on developing llm apps fast. In International Conference on Applied Engi-neering and Natural Sciences, volume 1, pp. 1050–1056, 2023.",
+        "style": "Normal"
+    },
+    {
+        "text": "Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. Interleaving re-trieval with chain-of-thought reasoning for knowledge-intensive multi-step questions. arXiv preprint arXiv:2212.10509, 2022.",
+        "style": "Normal"
+    },
+    {
+        "text": "Sinong Wang, Belinda Z Li, Madian Khabsa, Han Fang, and Hao Ma. Linformer: Self-attention with linear complexity. arXiv preprint arXiv:2006.04768, 2020.",
+        "style": "Normal"
+    },
+    {
+        "text": "Zheng Wang, Boxiao Jin, Zhongzhi Yu, and Minjia Zhang. Model tells you where to merge: Adap-tive kv cache merging for llms on long-context tasks. arXiv preprint arXiv:2407.08454, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "An Yang, Baosong Yang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Zhou, Chengpeng Li, Chengyuan Li, Dayiheng Liu, Fei Huang, et al. Qwen2 technical report. arXiv preprint arXiv:2407.10671, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuandong Tian, Christopher Re,´ Clark Barrett, et al. H2o: Heavy-hitter oracle for efficient gen-erative inference of large language models. Advances in Neural Information Processing Systems, 36, 2024.",
+        "style": "Normal"
+    },
+    {
+        "text": "DOCUMENT Q&A EXAMPLE",
+        "style": "Normal"
+    },
+    {
+        "text": "DATA PROPORTIONS",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 5: Sampling Ratios of Different Data Types during Model Fine-tuning",
+        "style": "Normal"
+    },
+    {
+        "text": "Table 6: Specific Data and Quantities of Document Q&A",
+        "style": "Normal"
+    },
+    {
+        "text": "COMPUTATIONAL LOAD CALCULATION",
+        "style": "Normal"
+    },
+    {
+        "text": "Here, we present the method for calculating FLOPS, while omitting the computation of lm head due",
+        "style": "Normal"
+    },
+    {
+        "text": "to its relatively small proportion. Let the number of input tokens be denoted as ninput and the context length as ncontext. For a LLM utilizing the Swiglu activation function, the relevant parameters include layer num, head num, kv head num, head size, hidden size, and intermediate size. For each token:",
+        "style": "Normal"
+    },
+    {
+        "text": "The computational cost of the QKV transformation for each layer, denoted as Cqkv, is given by:",
+        "style": "Normal"
+    },
+    {
+        "text": "Cqkv = 2 × hidden size × (head num + 2 × kv head num) × head size",
+        "style": "Normal"
+    },
+    {
+        "text": "The computational cost of the attention mechanism for each layer, denoted as Cattn, is expressed as:",
+        "style": "Normal"
+    },
+    {
+        "text": "Cattn = 2 × head num × head size × ncontext",
+        "style": "Normal"
+    },
+    {
+        "text": "The computational cost of the projection following the attention mechanism for each layer, denoted as Co, is given by:",
+        "style": "Normal"
+    },
+    {
+        "text": "Co = 2 × hidden size2",
+        "style": "Normal"
+    },
+    {
+        "text": "The computational cost of the multilayer perceptron (MLP) for each layer, denoted as Cmlp, can be represented as:",
+        "style": "Normal"
+    },
+    {
+        "text": "Cmlp = 2 × 3 × hidden size × intermediate size",
+        "style": "Normal"
+    },
+    {
+        "text": "Therefore, the total computational cost can thus be expressed as:",
+        "style": "Normal"
+    },
+    {
+        "text": "FLOPS = ninput × layer num × (Cqkv + Cattn + Co + Cmlp)",
+        "style": "Normal"
+    }
+]
