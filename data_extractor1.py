@@ -269,7 +269,7 @@ class DataExtractor:
         Extract images based on the file type of the loaded document. Determines the type of loader and
         delegates to the appropriate image extraction method.
         """
-        loaded_file = self.loader.load_file(self.loader.filepath)  # Load the file using the appropriate loader
+        loaded_file = self.loader.open_file(self.loader.filepath)  # Load the file using the appropriate loader
         if isinstance(self.loader, PDFLoader):
             return self._extract_pdf_images(self.loader.filepath)  # Extract images from PDF
         elif isinstance(self.loader, DOCXLoader):
@@ -382,7 +382,7 @@ class DataExtractor:
         Extract tables based on the file type of the loaded document. Determines the type of loader and
         delegates to the appropriate table extraction method.
         """
-        loaded_file = self.loader.load_file(self.loader.filepath)  # Load the file using the appropriate loader
+        loaded_file = self.loader.open_file(self.loader.filepath)  # Load the file using the appropriate loader
         if isinstance(self.loader, PDFLoader):
             return self._extract_pdf_tables(self.loader.filepath)  # Extract tables from PDF
         elif isinstance(self.loader, DOCXLoader):

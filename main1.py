@@ -1,7 +1,7 @@
 import os
 import json
 import sys
-import os
+from widget import upload_file
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Storage.sql_storage import SQLStorage
 from loaders.pdf_loader import PDFLoader
@@ -31,155 +31,109 @@ def save_to_file(data, filename):
     with open(filename, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)  # Write data as pretty-printed JSON.
 
+
 def main():
     # Retrieve database credentials from environment variables
     db_host = os.getenv("DB_HOST")
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
-    db_name = os.getenv("DB_NAME")
-
+    db_user = os.getenv("DB_USERNAME")
+    db_password = os.getenv("PASSWORD")
+    db_name = os.getenv("DATABASE")
     # Create the base directory structure for outputs
     base_output_folder = "output"
     ensure_directory(base_output_folder)  # Ensure the base output directory exists
 
     # Define subdirectories for each type of content
-    text_output_folder = os.path.join(base_output_folder, "text")
-    links_output_folder = os.path.join(base_output_folder, "links")
-    images_output_folder = os.path.join(base_output_folder, "images")
-    tables_output_folder = os.path.join(base_output_folder, "tables")
+    output_folders = {
+        "text": os.path.join(base_output_folder, "text"),
+        "links": os.path.join(base_output_folder, "links"),
+        "images": os.path.join(base_output_folder, "images"),
+        "tables": os.path.join(base_output_folder, "tables")
+    }
 
     # Ensure subdirectories for each file format within each content type
-    for category in [text_output_folder, links_output_folder, images_output_folder, tables_output_folder]:
-        ensure_directory(os.path.join(category, "pdf"))
-        ensure_directory(os.path.join(category, "docx"))
-        ensure_directory(os.path.join(category, "pptx"))
-
+    for category, folder in output_folders.items():
+        ensure_directory(os.path.join(folder, "pdf"))
     
-    pdf_loader = PDFLoader()   
-    docx_loader = DOCXLoader() 
-    ppt_loader = PPTLoader()   
+    file_path = upload_file()
+    if file_path:
+        # Process the uploaded file as needed
+        print(f"Processing file: {file_path}")
+    else:
+        print("No file to process.")
+    #file_path = 'Sample_file/sample.pdf'
 
-    # Set the file paths for each loader to specify which files they will process.
-    pdf_loader.filepath = "Sample_file/sample.pdf"   # Path to the PDF file to be processed.
-    docx_loader.filepath = "Sample_file/sample.docx" # Path to the DOCX file to be processed.
-    ppt_loader.filepath = "" # Path to the PPTX file to be processed.
+    loader = None
+    file_format = None
 
+    if file_path.endswith(".pdf"):
+        loader = PDFLoader()
+        file_format = "pdf"
+    elif file_path.endswith(".docx"):
+        loader = DOCXLoader()
+        file_format = "docx"
+    elif file_path.endswith(".pptx"):
+        loader = PPTLoader()
+        file_format = "pptx"
+    else:
+        print(f"Unsupported file format for {file_path}")
+        return
 
-    # -------------------- Text Extraction --------------------
-    # Initialize a DataExtractor for PDF files using the previously set up PDFLoader.
-    pdf_text_extractor = DataExtractor(pdf_loader)
-    # Extract text from the specified PDF file.
-    pdf_text = pdf_text_extractor.extract_text()
-    # Save the extracted text data to a JSON file in the designated output folder for PDF text.
-    save_to_file(pdf_text, os.path.join(text_output_folder, "pdf", "pdf_text.json"))
-
-    # Initialize a DataExtractor for DOCX files using the DOCXLoader.
-    docx_text_extractor = DataExtractor(docx_loader)
-    # Extract text from the specified DOCX file.
-    docx_text = docx_text_extractor.extract_text()
-    # Save the extracted text data to a JSON file in the designated output folder for DOCX text.
-    save_to_file(docx_text, os.path.join(text_output_folder, "docx", "docx_text.json"))
-
-    # Initialize a DataExtractor for PPTX files using the PPTLoader.
-    ppt_text_extractor = DataExtractor(ppt_loader)
-    # Extract text from the specified PPTX file.
-    ppt_text = ppt_text_extractor.extract_text()
-    # Save the extracted text data to a JSON file in the designated output folder for PPTX text.
-    save_to_file(ppt_text, os.path.join(text_output_folder, "pptx", "pptx_text.json"))
+    if loader is None:
+        print(f"Loader for file {file_path} could not be determined.")
+        return
+    
+    loader.filepath = file_path
 
 
-    # -------------------- Link Extraction --------------------
-    # Initialize a DataExtractor for PDF files to handle hyperlink extraction.
-    pdf_link_extractor = DataExtractor(pdf_loader)
-    # Extract hyperlinks from the specified PDF file.
-    pdf_links = pdf_link_extractor.extract_links()
-    # Save the extracted hyperlink data to a JSON file in the designated output folder for PDF links.
-    save_to_file(pdf_links, os.path.join(links_output_folder, "pdf", "pdf_links.json"))
 
-    # Initialize a DataExtractor for DOCX files to handle hyperlink extraction.
-    docx_link_extractor = DataExtractor(docx_loader)
-    # Extract hyperlinks from the specified DOCX file.
-    docx_links = docx_link_extractor.extract_links()
-    # Save the extracted hyperlink data to a JSON file in the designated output folder for DOCX links.
-    save_to_file(docx_links, os.path.join(links_output_folder, "docx", "docx_links.json"))
+    extractor = DataExtractor(loader)
 
-    # Initialize a DataExtractor for PPTX files to handle hyperlink extraction.
-    ppt_link_extractor = DataExtractor(ppt_loader)
-    # Extract hyperlinks from the specified PPTX file.
-    ppt_links = ppt_link_extractor.extract_links()
-    # Save the extracted hyperlink data to a JSON file in the designated output folder for PPTX links.
-    save_to_file(ppt_links, os.path.join(links_output_folder, "pptx", "pptx_links.json"))
+    extracted_text = extractor.extract_text()
+    if extracted_text:
+        save_to_file(extracted_text, os.path.join(output_folders["text"], file_format, f"{file_format}_text.json"))
 
+    # Define a list of tasks for each content type: links, images, and tables
+    tasks = [
+        ("links", "extract_links", "links"),
+        ("images", "extract_images", "images"),
+        ("tables", "extract_tables", None)  # No need for output folder for tables as it stores directly in DB
+    ]
 
-    # -------------------- Image Extraction --------------------
-    # Initialize a DataExtractor for PDF files to handle image extraction.
-    pdf_image_extractor = DataExtractor(pdf_loader)
-    # Extract images from the specified PDF file.
-    pdf_images = pdf_image_extractor.extract_images()
-    # Save the extracted image data to a JSON file in the designated output folder for PDF images.
-    save_to_file(pdf_images, os.path.join(images_output_folder, "pdf", "pdf_images.json"))
-
-    # Initialize a DataExtractor for DOCX files to handle image extraction.
-    docx_image_extractor = DataExtractor(docx_loader)
-    # Extract images from the specified DOCX file.
-    docx_images = docx_image_extractor.extract_images()
-    # Save the extracted image data to a JSON file in the designated output folder for DOCX images.
-    save_to_file(docx_images, os.path.join(images_output_folder, "docx", "docx_images.json"))
-
-    # Initialize a DataExtractor for PPTX files to handle image extraction.
-    ppt_image_extractor = DataExtractor(ppt_loader)
-    # Extract images from the specified PPTX file.
-    ppt_images = ppt_image_extractor.extract_images()
-    # Save the extracted image data to a JSON file in the designated output folder for PPTX images.
-    save_to_file(ppt_images, os.path.join(images_output_folder, "pptx", "pptx_images.json"))
-
-
-    # -------------------- Table Extraction --------------------
-    # Initialize a DataExtractor for PDF files specifically for extracting tables.
-    pdf_table_extractor = DataExtractor(pdf_loader)
-    # Extract tables from the specified PDF file and store the result.
-    pdf_tables = pdf_table_extractor.extract_tables()
-
-    # Initialize a DataExtractor for DOCX files specifically for extracting tables.
-    docx_table_extractor = DataExtractor(docx_loader)
-    # Extract tables from the specified DOCX file and store the result.
-    docx_tables = docx_table_extractor.extract_tables()
-
-    # Initialize a DataExtractor for PPTX files specifically for extracting tables.
-    ppt_table_extractor = DataExtractor(ppt_loader)
-    # Extract tables from the specified PPTX file and store the result.
-    ppt_tables = ppt_table_extractor.extract_tables()
-
+    # Loop through each task (links, images, tables) for each file format (PDF, DOCX, PPTX)
+    for category, extract_method, output_type in tasks:
+        extracted_data = getattr(extractor, extract_method)()  # Dynamically call the extraction method
+        
+        if extracted_data: 
+            # If the task is to store in a file (for links and images), save to the appropriate output folder
+            if output_type:
+                output_path = os.path.join(output_folders[output_type], file_format, f"{file_format}_{category}.json")
+                save_to_file(extracted_data, output_path)
+                print(f"{category.capitalize()} extraction completed and saved.")
+        else:
+            print(f"No {category} data extracted.")
+                
 
     # Setup SQLStorage using the credentials from environment variables
-    # Adjust these credentials according to your MySQL setup.
     storage = SQLStorage(host=db_host, user=db_user, password=db_password, database=db_name)
+
     # Check if the connection to the MySQL database is successful
     if storage.connection.is_connected():
         print("Successfully connected to the MySQL database")
     else:
         print("Failed to connect to the MySQL database")
 
-    # Extract and store data for PDF
-    pdf_extractor = DataExtractor(pdf_loader)  # Initialize a DataExtractor for PDF files.
-    storage.store_text(pdf_extractor.extract_text(), "pdf")  # Extract text from the PDF and store it in the database under the "pdf" category.
-    storage.store_links(pdf_extractor.extract_links(), "pdf")  # Extract hyperlinks from the PDF and store them in the database under the "pdf" category.
-    storage.store_images(pdf_extractor.extract_images(), "pdf")  # Extract images from the PDF and store them in the database under the "pdf" category.
-    storage.store_tables(pdf_extractor.extract_tables(), "pdf")  # Extract tables from the PDF and store them in the database under the "pdf" category.
+    # Store data in the database for each content type
+    for category, extract_method, _ in tasks + [("text", "extract_text", "text")]:
+            extracted_data = getattr(extractor, extract_method)()
+            getattr(storage, f"store_{category}")(extracted_data, file_format)  # Dynamically store data in the DB
+            if extracted_data:
+                getattr(storage, f"store_{category}")(extracted_data, "pdf")
+                print(f"{category.capitalize()} data stored in the database.")
+            else:
+                print(f"No {category} data to store in the database.")
 
-    # Extract and store data for DOCX
-    docx_extractor = DataExtractor(docx_loader)  # Initialize a DataExtractor for DOCX files.
-    storage.store_text(docx_extractor.extract_text(), "docx")  # Extract text from the DOCX and store it in the database under the "docx" category.
-    storage.store_links(docx_extractor.extract_links(), "docx")  # Extract hyperlinks from the DOCX and store them in the database under the "docx" category.
-    storage.store_images(docx_extractor.extract_images(), "docx")  # Extract images from the DOCX and store them in the database under the "docx" category.
-    storage.store_tables(docx_extractor.extract_tables(), "docx")  # Extract tables from the DOCX and store them in the database under the "docx" category.
 
-    # Extract and store data for PPTX
-    ppt_extractor = DataExtractor(ppt_loader)  # Initialize a DataExtractor for PPTX files.
-    storage.store_text(ppt_extractor.extract_text(), "pptx")  # Extract text from the PPTX and store it in the database under the "pptx" category.
-    storage.store_links(ppt_extractor.extract_links(), "pptx")  # Extract hyperlinks from the PPTX and store them in the database under the "pptx" category.
-    storage.store_images(ppt_extractor.extract_images(), "pptx")  # Extract images from the PPTX and store them in the database under the "pptx" category.
-    storage.store_tables(ppt_extractor.extract_tables(), "pptx")  # Extract tables from the PPTX and store them in the database under the "pptx" category.
 
+# Helper functions (ensure_directory, save_to_file, etc.) should be defined as required
 if __name__ == "__main__":
     main()

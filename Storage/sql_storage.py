@@ -143,3 +143,4 @@ class SQLStorage(Storage):
         for item in tables_data:
             self._execute_query(insert_query, (file_type, item.get('page_number'), item.get('csv_filename')))
         print(f"Table data inserted into the database for {file_type}.")
+        
