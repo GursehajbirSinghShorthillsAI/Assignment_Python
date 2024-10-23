@@ -10,7 +10,7 @@ from loaders.docx_loader import DOCXLoader
 from data_extractor1 import DataExtractor
 from dotenv import load_dotenv
 
-load_dotenv("config.env")  # Load environment variables from 'config.env'
+load_dotenv("config.env")  # Load environment variables from 'config.env'    
 
 def ensure_directory(path):
     """

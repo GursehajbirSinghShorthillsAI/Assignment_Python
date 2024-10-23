@@ -5,7 +5,6 @@ import csv  # For saving tables as CSV files
 from docx.oxml.ns import qn  # Used for namespacing in DOCX processing
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from loaders.file_loader import AbstractFileLoader
 from loaders.pdf_loader import PDFLoader
 from loaders.ppt_loader import PPTLoader
 from loaders.docx_loader import DOCXLoader
